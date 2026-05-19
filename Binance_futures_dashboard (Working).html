@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Futures Signal Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --bg:    #0f1117; --bg2:#1a1d27; --bg3:#222636;
+  --bdr:   rgba(255,255,255,0.07); --bdr2:rgba(255,255,255,0.13);
+  --text:  #e8eaf0; --t2:#8b8fa8; --t3:#4a4f66;
+  --grn:   #22c55e; --red:#ef4444; --amb:#f59e0b;
+  --blu:   #3b82f6; --pur:#8b5cf6;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'SF Mono','Fira Code',monospace;font-size:13px;}
+
+.hdr{background:var(--bg2);border-bottom:1px solid var(--bdr);padding:12px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:10;}
+.logo{font-size:14px;font-weight:700;letter-spacing:.08em;}
+.logo span{color:var(--amb);}
+select{background:var(--bg3);color:var(--text);border:1px solid var(--bdr2);border-radius:6px;padding:5px 10px;font-family:inherit;font-size:13px;cursor:pointer;}
+.price-row{display:flex;align-items:baseline;gap:8px;}
+.price{font-size:26px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;transition:color .15s;}
+.price.fu{color:var(--grn);} .price.fd{color:var(--red);}
+.chg{font-size:12px;padding:3px 8px;border-radius:4px;font-weight:600;}
+.up{background:rgba(34,197,94,.12);color:var(--grn);} .dn{background:rgba(239,68,68,.12);color:var(--red);} .neu{background:var(--bg3);color:var(--t2);}
+.hdr-r{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.rbtn{background:var(--bg3);border:1px solid var(--bdr2);color:var(--t2);border-radius:6px;padding:5px 12px;cursor:pointer;font-family:inherit;font-size:12px;}
+.rbtn:hover{border-color:var(--blu);color:var(--text);}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--t3);}
+.dot.live{background:var(--grn);animation:blink 2s infinite;} .dot.err{background:var(--red);}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.stxt{font-size:11px;color:var(--t2);}
+
+.main{padding:18px 24px;max-width:1200px;margin:0 auto;}
+
+/* VERDICT */
+.verdict{background:var(--bg2);border:1px solid var(--bdr);border-radius:12px;padding:18px 24px;margin-bottom:14px;display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+.rw{position:relative;width:88px;height:88px;flex-shrink:0;}
+.rw svg{width:88px;height:88px;}
+.rnum{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;}
+.vtag{font-size:10px;color:var(--t3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px;}
+.vtitle{font-size:22px;font-weight:700;margin-bottom:4px;transition:color .4s;}
+.vsub{font-size:12px;color:var(--t2);line-height:1.5;}
+.vmeta{margin-left:auto;text-align:right;display:flex;flex-direction:column;gap:8px;}
+.vm-item .lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px;}
+.vm-item .val{font-size:13px;font-weight:700;}
+
+/* SIGNALS */
+.sigs{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin-bottom:14px;}
+.sig{background:var(--bg2);border:1px solid var(--bdr);border-radius:10px;padding:13px 15px;}
+.sigtop{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;}
+.signame{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--t3);}
+.sdot{width:8px;height:8px;border-radius:50%;}
+.sp{background:var(--grn);} .sf{background:var(--red);} .sw{background:var(--amb);} .sn{background:var(--t3);}
+.sigval{font-size:15px;font-weight:700;margin-bottom:3px;}
+.sigmeta{font-size:11px;color:var(--t2);line-height:1.5;}
+.barbg{margin-top:9px;height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;}
+.bar{height:100%;border-radius:2px;transition:width .7s;}
+.bp{background:var(--grn);} .bf{background:var(--red);} .bw{background:var(--amb);} .bn{background:var(--t3);}
+
+/* CHARTS */
+.charts{display:grid;grid-template-columns:1.4fr 1fr;gap:12px;margin-bottom:14px;}
+.cbox{background:var(--bg2);border:1px solid var(--bdr);border-radius:10px;padding:14px 16px;}
+.clbl{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--t3);margin-bottom:6px;}
+.cleg{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
+.cleg span{font-size:11px;color:var(--t2);display:flex;align-items:center;gap:5px;}
+.cleg i{display:inline-block;width:16px;height:2px;border-radius:1px;}
+.cwrap{position:relative;height:160px;}
+
+/* FUNDING / OI */
+.fobox{background:var(--bg2);border:1px solid var(--bdr);border-radius:10px;padding:14px 16px;margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+.fo-lbl{font-size:10px;color:var(--t3);letter-spacing:.09em;text-transform:uppercase;margin-bottom:4px;}
+.fo-val{font-size:20px;font-weight:700;margin-bottom:3px;font-variant-numeric:tabular-nums;}
+.fo-meta{font-size:11px;color:var(--t2);line-height:1.5;}
+
+/* RISK */
+.risk{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;}
+.rbox{background:var(--bg2);border:1px solid var(--bdr);border-radius:10px;padding:11px 14px;}
+.rlbl{font-size:10px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px;}
+.rval{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;}
+.rval.g{color:var(--grn);} .rval.r{color:var(--red);} .rval.a{color:var(--amb);}
+
+.foot{font-size:11px;color:var(--t3);border-top:1px solid var(--bdr);padding-top:12px;line-height:1.8;}
+.foot b{color:var(--t2);}
+
+@media(max-width:640px){.charts{grid-template-columns:1fr;}.fobox{grid-template-columns:1fr;}.main{padding:14px;}.hdr{padding:10px 14px;}}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div class="logo">FUTURES <span>SIGNAL</span> DASH</div>
+  <select id="pairSel">
+    <option value="BTCUSDT">BTC / USDT</option>
+    <option value="ETHUSDT">ETH / USDT</option>
+    <option value="SOLUSDT">SOL / USDT</option>
+    <option value="BNBUSDT">BNB / USDT</option>
+    <option value="XRPUSDT">XRP / USDT</option>
+    <option value="DOGEUSDT">DOGE / USDT</option>
+    <option value="ADAUSDT">ADA / USDT</option>
+  </select>
+  <div class="price-row">
+    <div class="price" id="priceEl">—</div>
+    <div class="chg neu" id="chgEl">—</div>
+  </div>
+  <div class="hdr-r">
+    <button class="rbtn" onclick="hardRefresh()">↻ Refresh</button>
+    <div class="dot" id="sDot"></div>
+    <span class="stxt" id="sTxt">Starting…</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="verdict">
+    <div class="rw">
+      <svg viewBox="0 0 88 88">
+        <circle cx="44" cy="44" r="36" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="8"/>
+        <circle cx="44" cy="44" r="36" fill="none" id="arc"
+          stroke="var(--t3)" stroke-width="8" stroke-dasharray="226" stroke-dashoffset="226"
+          stroke-linecap="round" transform="rotate(-90 44 44)"
+          style="transition:stroke-dashoffset .9s,stroke .5s;"/>
+      </svg>
+      <div class="rnum" id="rnum">—</div>
+    </div>
+    <div>
+      <div class="vtag">Signal verdict</div>
+      <div class="vtitle" id="vtitle">Loading…</div>
+      <div class="vsub" id="vsub">Fetching live data from Binance Futures</div>
+    </div>
+    <div class="vmeta">
+      <div class="vm-item"><div class="lbl">Bias</div><div class="val" id="vdir">—</div></div>
+      <div class="vm-item"><div class="lbl">Updated</div><div class="val" id="vtime">—</div></div>
+    </div>
+  </div>
+
+  <div class="sigs" id="sigsGrid"><div class="sig"><div class="signame">Loading…</div></div></div>
+
+  <div class="charts">
+    <div class="cbox">
+      <div class="clbl">1m price + EMA</div>
+      <div class="cleg">
+        <span><i style="background:#3b82f6"></i>Price</span>
+        <span><i style="background:#f59e0b"></i>EMA 9</span>
+        <span><i style="background:#ef4444"></i>EMA 21</span>
+      </div>
+      <div class="cwrap"><canvas id="pc"></canvas></div>
+    </div>
+    <div class="cbox">
+      <div class="clbl">RSI (14) — sweet spot 44–57</div>
+      <div class="cleg">
+        <span><i style="background:#8b5cf6"></i>RSI</span>
+        <span><i style="background:rgba(34,197,94,.5)"></i>44–57 zone</span>
+      </div>
+      <div class="cwrap"><canvas id="rc"></canvas></div>
+    </div>
+  </div>
+
+  <div class="fobox">
+    <div>
+      <div class="fo-lbl">Funding rate (live)</div>
+      <div class="fo-val" id="foR">—</div>
+      <div class="fo-meta" id="foRM">Target: −0.05% to +0.05%</div>
+    </div>
+    <div>
+      <div class="fo-lbl">Open interest (live)</div>
+      <div class="fo-val" id="foOI">—</div>
+      <div class="fo-meta" id="foOIM">Rising OI + rising price = real trend, not just short squeeze</div>
+    </div>
+  </div>
+
+  <div class="risk">
+    <div class="rbox"><div class="rlbl">Entry price</div><div class="rval" id="rEntry">—</div></div>
+    <div class="rbox"><div class="rlbl">Stop loss −0.25%</div><div class="rval r" id="rSL">—</div></div>
+    <div class="rbox"><div class="rlbl">Take profit 1:1.5 R</div><div class="rval g" id="rTP">—</div></div>
+    <div class="rbox"><div class="rlbl">Vol ratio (need ≥1.5×)</div><div class="rval" id="rVol">—</div></div>
+    <div class="rbox"><div class="rlbl">RSI value</div><div class="rval a" id="rRSI">—</div></div>
+    <div class="rbox"><div class="rlbl">Candles loaded</div><div class="rval a" id="rCand">—</div></div>
+  </div>
+
+  <div class="foot">
+    <b>Signal rules:</b> 15m trend bias (EMA9 vs EMA21) · 1m EMA crossover aligned with trend · RSI 44–57 sweet spot · Volume spike ≥1.5× avg · Funding −0.05% to +0.05% · OI rising with price.<br>
+    <b>Risk:</b> SL 0.25% · TP 1:1.5 R · 3–5× leverage max · 1 open trade · 20 trades/day max · Stop if balance −3%/day.<br>
+    <b>⚠ Learning only. Always use testnet first. Not financial advice.</b>
+  </div>
+</div>
+
+<script>
+const FAPI='https://fapi.binance.com', WSB='wss://fstream.binance.com/ws';
+const REFRESH=15000;
+let pair='BTCUSDT', c1=[], c15=[], ws=null, timer=null, pC=null, rC=null, lastP=null;
+let storedFR=NaN, storedOI=NaN;
+
+const $=id=>document.getElementById(id);
+const fmt=(n,d)=>n==null||isNaN(n)?'—':n.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const pdec=p=>p>=10000?1:p>=100?2:p>=1?3:5;
+const ts=()=>new Date().toLocaleTimeString();
+
+function setStat(s,t){
+  $('sDot').className='dot'+(s==='live'?' live':s==='err'?' err':'');
+  $('sTxt').textContent=t;
+}
+
+function ema(arr,p){
+  const k=2/(p+1); let prev=null; const out=[];
+  for(const v of arr){prev=prev===null?v:v*k+prev*(1-k);out.push(prev);}
+  return out;
+}
+
+function rsi(cl,p=14){
+  if(cl.length<p+1)return cl.map(()=>null);
+  const out=Array(p).fill(null);
+  for(let i=p;i<cl.length;i++){
+    let g=0,l=0;
+    for(let j=i-p+1;j<=i;j++){const d=cl[j]-cl[j-1];d>0?g+=d:l-=d;}
+    out.push(100-100/(1+(l===0?Infinity:g/l)));
+  }
+  return out;
+}
+
+async function fetchK(iv,lim){
+  const r=await fetch(`${FAPI}/fapi/v1/klines?symbol=${pair}&interval=${iv}&limit=${lim}`);
+  const d=await r.json();
+  return d.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));
+}
+
+async function fetchFR(){
+  const r=await fetch(`${FAPI}/fapi/v1/fundingRate?symbol=${pair}&limit=1`);
+  const d=await r.json();
+  return d.length?+d[0].fundingRate:null;
+}
+
+async function fetchOI(){
+  const r=await fetch(`${FAPI}/fapi/v1/openInterest?symbol=${pair}`);
+  const d=await r.json();
+  return d.openInterest?+d.openInterest:null;
+}
+
+function flashPrice(p){
+  const el=$('priceEl');
+  el.textContent=fmt(p,pdec(p));
+  if(lastP!==null){
+    el.classList.remove('fu','fd');
+    void el.offsetWidth;
+    el.classList.add(p>=lastP?'fu':'fd');
+    setTimeout(()=>el.classList.remove('fu','fd'),500);
+    const pct=((p-lastP)/lastP*100).toFixed(3);
+    const ce=$('chgEl');
+    ce.textContent=(pct>=0?'+':'')+pct+'%';
+    ce.className='chg '+(pct>=0?'up':'dn');
+  }
+  lastP=p;
+}
+
+function connectWS(){
+  if(ws){try{ws.close();}catch(e){}}
+  ws=new WebSocket(`${WSB}/${pair.toLowerCase()}@aggTrade`);
+  ws.onopen=()=>setStat('live','Live — Binance Futures');
+  ws.onerror=()=>setStat('err','WS error');
+  ws.onclose=()=>setTimeout(connectWS,4000);
+  ws.onmessage=e=>{
+    const p=+JSON.parse(e.data).p;
+    flashPrice(p);
+    if(c1.length)c1[c1.length-1].c=p;
+  };
+}
+
+function analyse(){
+  if(c1.length<22||c15.length<5){
+    $('vtitle').textContent='Building history…';
+    $('vsub').textContent=`1m candles: ${c1.length} · 15m candles: ${c15.length}`;
+    $('rnum').textContent='…';
+    $('rCand').textContent=`${c1.length}/100`;
+    return;
+  }
+
+  const cl1=c1.map(x=>x.c), vl1=c1.map(x=>x.v), cl15=c15.map(x=>x.c);
+  const price=cl1.at(-1);
+
+  // 15m trend
+  const e9_15=ema(cl15,9), e21_15=ema(cl15,21);
+  const diff15=(e9_15.at(-1)-e21_15.at(-1))/e21_15.at(-1);
+  const flat=Math.abs(diff15)<0.0006;
+  const tUp=e9_15.at(-1)>e21_15.at(-1);
+  const dir=flat?'NEUTRAL':tUp?'LONG':'SHORT';
+
+  // 1m EMA
+  const e9=ema(cl1,9), e21=ema(cl1,21);
+  const lastE9=e9.at(-1),prevE9=e9.at(-2),lastE21=e21.at(-1),prevE21=e21.at(-2);
+  const bull1m=lastE9>lastE21;
+  const crossed=(prevE9<=prevE21&&lastE9>lastE21)||(prevE9>=prevE21&&lastE9<lastE21);
+  const ediff=(lastE9-lastE21)/lastE21*100;
+
+  // RSI
+  const rs=rsi(cl1,14), lastRSI=rs.at(-1);
+  const rsiOk=lastRSI!=null&&lastRSI>=44&&lastRSI<=57;
+
+  // Volume
+  const avg20=vl1.slice(-21,-1).reduce((a,b)=>a+b,0)/20;
+  const vrat=vl1.at(-1)/avg20;
+  const volOk=vrat>=1.5;
+
+  // Funding
+  const frPct=storedFR; // already in %
+  const frOk=!isNaN(frPct)&&frPct>=-0.05&&frPct<=0.05;
+  const frAvail=!isNaN(frPct);
+
+  const s1=flat?'warn':tUp;
+  const s2=dir==='LONG'?bull1m:dir==='SHORT'?!bull1m:false;
+  const s3=rsiOk;
+  const s4=volOk;
+  const s5=frAvail?frOk:null;
+
+  const passed=[s1,s2,s3,s4,s5].filter(x=>x===true).length;
+  const total=frAvail?5:4;
+
+  // Ring
+  const circ=226;
+  $('arc').style.strokeDashoffset=circ-(passed/total)*circ;
+  $('rnum').textContent=passed;
+
+  let col,vt,vs;
+  if(passed>=total-1&&dir==='LONG'){col='var(--grn)';vt='🟢  LONG SETUP';vs=`${passed}/${total} signals green — good long conditions`;}
+  else if(passed>=total-1&&dir==='SHORT'){col='var(--red)';vt='🔴  SHORT SETUP';vs=`${passed}/${total} signals green — good short conditions`;}
+  else if(passed>=Math.ceil(total/2)){col='var(--amb)';vt='⚠️   WEAK — WAIT';vs=`${passed}/${total} pass — not enough confirmation yet`;}
+  else{col='var(--t3)';vt='⛔  NO TRADE';vs=`${passed}/${total} pass — conditions not met, stay flat`;}
+
+  $('arc').style.stroke=col;
+  $('vtitle').style.color=col;
+  $('vtitle').textContent=vt;
+  $('vsub').textContent=vs;
+  $('vdir').textContent=dir;
+  $('vdir').style.color=dir==='LONG'?'var(--grn)':dir==='SHORT'?'var(--red)':'var(--t2)';
+  $('vtime').textContent=ts();
+
+  const sigs=[
+    {name:'15m trend bias',
+     val:flat?'Sideways':tUp?'▲ Uptrend':'▼ Downtrend',
+     meta:`EMA9/21 gap ${(diff15*100).toFixed(3)}%${flat?' — too flat, no trade':''}`,
+     pass:s1,pct:flat?40:tUp?88:12},
+    {name:'1m EMA cross',
+     val:bull1m?'▲ EMA9 above 21':'▼ EMA9 below 21',
+     meta:`Gap ${ediff>=0?'+':''}${ediff.toFixed(3)}%${crossed?' ← FRESH CROSS!':''}`,
+     pass:s2,pct:bull1m?82:18},
+    {name:'RSI (14)',
+     val:lastRSI!=null?lastRSI.toFixed(1):'—',
+     meta:`Sweet spot 44–57 | ${lastRSI==null?'calc…':lastRSI<44?'↓ oversold zone':lastRSI>57?'↑ overbought zone':'✓ in zone'}`,
+     pass:s3,pct:lastRSI!=null?Math.min(100,Math.max(0,((lastRSI-20)/60)*100)):50},
+    {name:'Volume spike',
+     val:`${vrat.toFixed(2)}× avg`,
+     meta:`Need ≥1.5× | ${volOk?'✓ spike confirmed':'✗ weak volume — skip'}`,
+     pass:s4,pct:Math.min(100,(vrat/2.5)*100)},
+    {name:'Funding rate',
+     val:frAvail?`${frPct.toFixed(4)}%`:'Fetching…',
+     meta:`Range −0.05% to +0.05% | ${frAvail?frOk?'✓ neutral — safe':'✗ crowded trade — avoid':'loading'}`,
+     pass:s5,pct:frAvail?100-Math.min(100,(Math.abs(frPct)/0.1)*100):50},
+    {name:'Open interest',
+     val:isNaN(storedOI)?'—':storedOI.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}),
+     meta:'Rising OI + rising price = real move. Falling OI + rising price = short squeeze only.',
+     pass:null,pct:50},
+  ];
+
+  $('sigsGrid').innerHTML=sigs.map(s=>{
+    const dc=s.pass===true?'sdot sp':s.pass===false?'sdot sf':s.pass==='warn'?'sdot sw':'sdot sn';
+    const bc=s.pass===true?'bar bp':s.pass===false?'bar bf':s.pass==='warn'?'bar bw':'bar bn';
+    return `<div class="sig">
+      <div class="sigtop"><span class="signame">${s.name}</span><span class="${dc}"></span></div>
+      <div class="sigval">${s.val}</div>
+      <div class="sigmeta">${s.meta}</div>
+      <div class="barbg"><div class="${bc}" style="width:${Math.min(100,Math.max(0,s.pct))}%"></div></div>
+    </div>`;
+  }).join('');
+
+  const dec=pdec(price);
+  const sl=dir==='SHORT'?price*1.0025:price*0.9975;
+  const tp=dir==='SHORT'?price*(1-0.00375):price*(1+0.00375);
+  $('rEntry').textContent=fmt(price,dec);
+  $('rSL').textContent=fmt(sl,dec);
+  $('rTP').textContent=fmt(tp,dec);
+  $('rVol').textContent=`${vrat.toFixed(2)}× ${volOk?'✓':'✗'}`;
+  $('rVol').className='rval '+(volOk?'g':'r');
+  $('rRSI').textContent=lastRSI!=null?lastRSI.toFixed(1):'—';
+  $('rRSI').className='rval '+(rsiOk?'g':lastRSI==null?'a':'r');
+  $('rCand').textContent=`${c1.length}/100`;
+
+  drawCharts(cl1,e9,e21,rs);
+}
+
+function drawCharts(cl1,e9,e21,rs){
+  const n=Math.min(c1.length,60),sl=c1.slice(-n);
+  const closes=sl.map(x=>x.c);
+  const labels=sl.map(x=>{const d=new Date(x.t);return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;});
+  const e9s=e9.slice(-n),e21s=e21.slice(-n),rss=rs.slice(-n);
+  const gc='rgba(255,255,255,0.05)',tc='#4a4f66';
+
+  if(pC)pC.destroy();
+  pC=new Chart($('pc'),{type:'line',
+    data:{labels,datasets:[
+      {label:'P',data:closes,borderColor:'#3b82f6',borderWidth:1.5,pointRadius:0,tension:.2,fill:false},
+      {label:'E9',data:e9s,borderColor:'#f59e0b',borderWidth:1,pointRadius:0,tension:.2,fill:false,borderDash:[3,2]},
+      {label:'E21',data:e21s,borderColor:'#ef4444',borderWidth:1,pointRadius:0,tension:.2,fill:false,borderDash:[5,3]},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{maxTicksLimit:6,color:tc,font:{size:10}},grid:{color:gc},border:{display:false}},
+              y:{ticks:{maxTicksLimit:5,color:tc,font:{size:10}},grid:{color:gc},border:{display:false}}}}
+  });
+
+  if(rC)rC.destroy();
+  rC=new Chart($('rc'),{type:'line',
+    data:{labels,datasets:[
+      {label:'RSI',data:rss,borderColor:'#8b5cf6',borderWidth:1.5,pointRadius:0,tension:.3,fill:false},
+      {label:'H',data:rss.map(()=>57),borderColor:'rgba(34,197,94,.4)',borderWidth:1,pointRadius:0,fill:false,borderDash:[4,3]},
+      {label:'L',data:rss.map(()=>44),borderColor:'rgba(34,197,94,.4)',borderWidth:1,pointRadius:0,fill:'1',borderDash:[4,3]},
+      {label:'OB',data:rss.map(()=>70),borderColor:'rgba(239,68,68,.2)',borderWidth:1,pointRadius:0,fill:false,borderDash:[2,4]},
+      {label:'OS',data:rss.map(()=>30),borderColor:'rgba(239,68,68,.2)',borderWidth:1,pointRadius:0,fill:false,borderDash:[2,4]},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{maxTicksLimit:6,color:tc,font:{size:10}},grid:{color:gc},border:{display:false}},
+              y:{min:20,max:80,ticks:{values:[30,44,57,70],color:tc,font:{size:10}},grid:{color:gc},border:{display:false}}}}
+  });
+}
+
+async function loadAll(){
+  setStat('','Fetching…');
+  try{
+    const[k1,k15,fr,oi]=await Promise.all([fetchK('1m',100),fetchK('15m',50),fetchFR(),fetchOI()]);
+    c1=k1; c15=k15;
+    if(c1.length)flashPrice(c1.at(-1).c);
+
+    if(fr!==null){
+      const pct=fr*100;
+      storedFR=pct;
+      const ok=pct>=-0.05&&pct<=0.05;
+      $('foR').textContent=`${pct.toFixed(4)}%`;
+      $('foR').style.color=ok?'var(--grn)':'var(--red)';
+      $('foRM').textContent=ok?'✓ Neutral — safe funding environment':'✗ Extreme funding — crowded trade, consider skipping';
+    }
+    if(oi!==null){
+      storedOI=oi;
+      $('foOI').textContent=oi.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:2});
+      $('foOIM').textContent=`${oi.toLocaleString('en-US',{maximumFractionDigits:0})} contracts — watch for direction vs price`;
+    }
+
+    analyse();
+    setStat('live','Live — Binance Futures');
+  }catch(e){
+    setStat('err',`Error: ${e.message}`);
+    $('vtitle').textContent='Fetch error';
+    $('vsub').textContent=e.message;
+  }
+}
+
+function hardRefresh(){
+  clearInterval(timer);
+  loadAll();
+  timer=setInterval(loadAll,REFRESH);
+}
+
+$('pairSel').addEventListener('change',e=>{
+  pair=e.target.value;
+  c1=[];c15=[];lastP=null;storedFR=NaN;storedOI=NaN;
+  connectWS();
+  hardRefresh();
+});
+
+connectWS();
+hardRefresh();
+</script>
+</body>
+</html>
